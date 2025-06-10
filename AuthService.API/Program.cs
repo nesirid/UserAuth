@@ -2,6 +2,8 @@ using AuthService.Business;
 using AuthService.DAL.Contexts;
 using Microsoft.EntityFrameworkCore;
 using SharedLibrary.ServiceRegistration;
+using SharedLibrary.Middlewares;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,12 +38,10 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-
-
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
-//app.UseCustomExceptionHandler();
+app.UseCustomExceptionHandler();
 
 app.UseAuthentication();
 app.UseAuthorization();

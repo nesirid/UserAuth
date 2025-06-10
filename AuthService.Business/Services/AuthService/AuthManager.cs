@@ -178,5 +178,20 @@ namespace AuthService.Business.Services.AuthService
         {
             return CheckUserExistAsync(email, phoneNumber);
         }
+
+        public async Task LogOutAsync(LogoutDto dto)
+        {
+            if (_currentUser.UserGuid == Guid.Empty)
+                throw new UnauthorizedAccessException("User not authenticated");
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == _currentUser.UserGuid)
+                ?? throw new NotFoundException<User>();
+
+            user.RefreshToken = null;
+            user.RefreshTokenExpireDate = null;
+
+            await _context.SaveChangesAsync();
+        }
     }
 }

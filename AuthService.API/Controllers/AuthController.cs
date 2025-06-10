@@ -62,5 +62,13 @@ namespace AuthService.API.Controllers
             await _authService.CheckUserExistAsync(email.Trim(), phoneNumber.Trim());
             return Ok();
         }
+
+        [HttpGet("[action]")]
+        public async Task<IActionResult> LogOut([FromBody] LogoutDto Dto)
+        {
+            await _authService.LogOutAsync(Dto);
+            return Ok("Çıxış uğurla edildi.");
+        }
+
     }
 }
