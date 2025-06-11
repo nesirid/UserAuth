@@ -10,5 +10,6 @@ namespace AuthService.Business.Services.TokenHandler.Interface
         string GeneratePasswordHash(string input);
         RefreshToken GenerateRefreshToken(string token, int min);
         bool VerifyPasswordHash(string input, string hashedInput);
+        Guid GetUserIdFromToken(string token);
     }
 }

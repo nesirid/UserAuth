@@ -18,5 +18,7 @@ namespace AuthService.Business.Services.AuthService.Interface
 
         Task CheckUserExistAsync(UserCheckDto dto);
 
+        Task LogOutAsync(LogoutDto dto);
+
     }
 }

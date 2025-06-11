@@ -123,5 +123,19 @@ namespace AuthService.Business.Services.TokenHandler
                 return false;
             }
         }
+
+        public Guid GetUserIdFromToken(string token)
+        {
+            var handler = new JwtSecurityTokenHandler();
+
+            if (!handler.CanReadToken(token))
+                return Guid.Empty;
+
+            var jwtToken = handler.ReadJwtToken(token);
+            var userIdClaim = jwtToken.Claims.FirstOrDefault(c =>
+                c.Type == ClaimTypes.NameIdentifier || c.Type == JwtRegisteredClaimNames.Sub);
+
+            return Guid.TryParse(userIdClaim?.Value, out var guid) ? guid : Guid.Empty;
+        }
     }
 }

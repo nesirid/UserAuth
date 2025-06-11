@@ -13,6 +13,10 @@ namespace AuthService.Core.Entities
 
         public string Password { get; set; } = null!;
 
+        public int FailedLoginAttempts { get; set; } = 0;
+        public DateTime? BlockedDate { get; set; }
+
+
         public string MainPhoneNumber { get; set; }
         public string Email { get; set; } = null!;
 

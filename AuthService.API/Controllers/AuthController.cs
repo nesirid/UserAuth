@@ -1,5 +1,6 @@
 ﻿using AuthService.Business.Dtos;
 using AuthService.Business.Services.AuthService.Interface;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SharedLibrary.Helpers;
@@ -16,7 +17,6 @@ namespace AuthService.API.Controllers
             await _authService.RegisterAsync(dto);
             return Ok();
         }
-
         [HttpPost("[action]")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
@@ -43,6 +43,7 @@ namespace AuthService.API.Controllers
             return Ok();
         }
 
+        [Authorize]
         [HttpPost("[action]")]
         public async Task<IActionResult> UpdatePassword(PasswordChangeDto dto)
         {
@@ -50,19 +51,21 @@ namespace AuthService.API.Controllers
             return Ok();
         }
 
+        [Authorize]
         [HttpGet("[action]")]
-        public async Task<IActionResult> CheckUserExist(UserCheckDto dto)
+        public async Task<IActionResult> CheckUserExist([FromQuery] UserCheckDto dto)
         {
             await _authService.CheckUserExistAsync(dto);
             return Ok();
         }
 
-        //[HttpPost("[action]")]
-        //public async Task<IActionResult> LogOut([FromBody] LogoutDto Dto)
-        //{
-        //    await _authService.LogOutAsync(Dto);
-        //    return Ok("Çıxış uğurla edildi.");
-        //}
+        [Authorize]
+        [HttpPost("[action]")]
+        public async Task<IActionResult> LogOut([FromBody] LogoutDto Dto)
+        {
+            await _authService.LogOutAsync(Dto);
+            return Ok();
+        }
 
     }
 }
