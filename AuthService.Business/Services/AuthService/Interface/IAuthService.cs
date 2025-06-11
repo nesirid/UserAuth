@@ -14,10 +14,9 @@ namespace AuthService.Business.Services.AuthService.Interface
 
         Task ConfirmPasswordResetAsync(PasswordResetDto dto);
 
-        Task UpdatePasswordAsync(string oldPassword, string newPassword);
+        Task UpdatePasswordAsync(PasswordChangeDto dto);
 
-        Task CheckUserExistAsync(string email,string phoneNumber);
+        Task CheckUserExistAsync(UserCheckDto dto);
 
-        Task LogOutAsync(LogoutDto dto);
     }
 }

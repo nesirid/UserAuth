@@ -44,31 +44,25 @@ namespace AuthService.API.Controllers
         }
 
         [HttpPost("[action]")]
-        public async Task<IActionResult> UpdatePassword(string oldPassword, string newPassword)
+        public async Task<IActionResult> UpdatePassword(PasswordChangeDto dto)
         {
-            await _authService.UpdatePasswordAsync(oldPassword, newPassword);
+            await _authService.UpdatePasswordAsync(dto);
             return Ok();
         }
 
         [HttpGet("[action]")]
-        public async Task<IActionResult> TryLanguage()
+        public async Task<IActionResult> CheckUserExist(UserCheckDto dto)
         {
-            return Ok(MessageHelper.GetMessage("WELCOME"));
-        }
-
-        [HttpGet("[action]")]
-        public async Task<IActionResult> CheckUserExist(string email, string phoneNumber)
-        {
-            await _authService.CheckUserExistAsync(email.Trim(), phoneNumber.Trim());
+            await _authService.CheckUserExistAsync(dto);
             return Ok();
         }
 
-        [HttpGet("[action]")]
-        public async Task<IActionResult> LogOut([FromBody] LogoutDto Dto)
-        {
-            await _authService.LogOutAsync(Dto);
-            return Ok("Çıxış uğurla edildi.");
-        }
+        //[HttpPost("[action]")]
+        //public async Task<IActionResult> LogOut([FromBody] LogoutDto Dto)
+        //{
+        //    await _authService.LogOutAsync(Dto);
+        //    return Ok("Çıxış uğurla edildi.");
+        //}
 
     }
 }

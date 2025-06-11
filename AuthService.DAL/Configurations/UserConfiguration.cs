@@ -32,7 +32,10 @@ namespace AuthService.DAL.Configurations
                 .HasMaxLength(100);
 
             modelBuilder.Property(e => e.Email)
-                .HasMaxLength(100);
+                .HasMaxLength(100)
+                .IsRequired();
+            modelBuilder.HasIndex(e => e.Email)
+                .IsUnique();
 
             modelBuilder.Property(e => e.RefreshToken)
                 .HasMaxLength(500);

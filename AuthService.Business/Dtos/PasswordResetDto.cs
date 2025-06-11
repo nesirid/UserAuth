@@ -14,6 +14,11 @@ public class PasswordResetDtoValidator : AbstractValidator<PasswordResetDto>
 {
     public PasswordResetDtoValidator()
     {
+        RuleFor(x => x.Token)
+            .NotNull()
+            .NotEmpty()
+            .WithMessage(MessageHelper.GetMessage("CANNOT_BE_EMPTY"));
+
         RuleFor(x => x.NewPassword)
           .NotNull()
           .NotEmpty()

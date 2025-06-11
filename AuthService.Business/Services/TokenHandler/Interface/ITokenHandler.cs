@@ -1,7 +1,7 @@
 ﻿using AuthService.Business.Dtos;
 using AuthService.Core.Entities;
 
-namespace AuthService.Business.Services.TokenHandler
+namespace AuthService.Business.Services.TokenHandler.Interface
 {
     public interface ITokenHandler
     {

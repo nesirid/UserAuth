@@ -9,7 +9,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
+
 builder.Services.AddControllers();
+builder.Services.AddAuthServices(builder.Configuration);
+
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwagger();
 
@@ -18,7 +22,6 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseSqlServer(builder.Configuration.GetConnectionString("MSSQL"));
 });
 
-builder.Services.AddAuthServices(builder.Configuration);
 
 var app = builder.Build();
 

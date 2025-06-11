@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SharedLibrary.HelperServices.Current
+namespace SharedLibrary.HelperServices.Current.Interface
 {
     public interface ICurrentUser
     {

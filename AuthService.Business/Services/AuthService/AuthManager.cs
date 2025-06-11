@@ -9,8 +9,8 @@ using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using AuthService.Business.Exceptions.UserException;
 using SharedLibrary.Exceptions;
-using SharedLibrary.HelperServices.Current;
-using AuthService.Business.Services.TokenHandler;
+using AuthService.Business.Services.TokenHandler.Interface;
+using SharedLibrary.HelperServices.Current.Interface;
 
 namespace AuthService.Business.Services.AuthService
 {
@@ -23,10 +23,10 @@ namespace AuthService.Business.Services.AuthService
 
         public AuthManager(
                AppDbContext context,
-              ITokenHandler tokenHandler,
-              IConfiguration configuration,
-              ICurrentUser currentUser
-                                       )
+               ITokenHandler tokenHandler,
+               IConfiguration configuration,
+               ICurrentUser currentUser
+                          )
         {
             _context = context;
             _tokenHandler = tokenHandler;
@@ -38,10 +38,17 @@ namespace AuthService.Business.Services.AuthService
         {
             dto.MainPhoneNumber = dto.MainPhoneNumber.Trim();
             dto.Email = dto.Email.Trim().ToLower();
-            await CheckUserExistAsync(dto.Email, dto.MainPhoneNumber);
 
             if (dto.Password != dto.ConfirmPassword)
                 throw new WrongPasswordException();
+
+            bool emailExists = await _context.Users.AnyAsync(u => u.Email == dto.Email);
+            if (emailExists)
+                throw new UserExistException();
+
+            bool phoneExists = await _context.Users.AnyAsync(u => u.MainPhoneNumber == dto.MainPhoneNumber);
+            if (phoneExists)
+                throw new UserExistException();
 
             var user = new User
             {
@@ -60,14 +67,27 @@ namespace AuthService.Business.Services.AuthService
 
             await _context.Users.AddAsync(user);
             await _context.SaveChangesAsync();
+        }
 
+        public async Task CheckUserExistAsync(UserCheckDto dto)
+        {
+            if (await _context.Users.AsNoTracking().AnyAsync(u => u.Email == dto.Email.ToLower()))
+                throw new ExistEmailException();
+
+            if (await _context.Users.AsNoTracking().AnyAsync(u => u.MainPhoneNumber == dto.PhoneNumber))
+                throw new ExistPhoneNumberException();
         }
 
         public async Task<TokenResponseDto> LoginAsync(LoginDto dto)
         {
+            var normalizedInput = dto.UserNameOrEmail.ToLower();
+
             var user = await _context.Users
-                .FirstOrDefaultAsync(x => x.Email == dto.UserNameOrEmail.ToLower())
+                .FirstOrDefaultAsync(x => x.Email.ToLower() == normalizedInput || x.UserName.ToLower() == normalizedInput)
                 ?? throw new LoginFailedException();
+
+            if (user.Status != UserStatus.Active)
+                throw new InvalidUserStatusException($"User status is not active: {user.Status}");
 
             if (!_tokenHandler.VerifyPasswordHash(dto.Password, user.Password))
                 throw new LoginFailedException();
@@ -78,7 +98,7 @@ namespace AuthService.Business.Services.AuthService
         public async Task<TokenResponseDto> LoginWithRefreshTokenAsync(string refreshToken)
         {
             if (string.IsNullOrEmpty(refreshToken))
-                throw new BadRequestException("Invalid refresh token");
+                throw new RefreshTokenExpiredException();
 
             var user = await _context.Users
                 .FirstOrDefaultAsync(x => x.RefreshToken == refreshToken && x.RefreshTokenExpireDate > DateTime.UtcNow)
@@ -87,10 +107,14 @@ namespace AuthService.Business.Services.AuthService
             return await GenerateTokenResponse(user);
         }
 
-        public async Task ResetPasswordAsync(string email)
+        public async Task ResetPasswordAsync(string input)
         {
+            var normalizedInput = input.ToLower();
+
             var user = await _context.Users
-                .FirstOrDefaultAsync(x => x.Email == email.ToLower())
+                .FirstOrDefaultAsync(x =>
+                    x.Email.ToLower() == normalizedInput ||
+                    x.UserName.ToLower() == normalizedInput)
                 ?? throw new UserNotFoundException();
 
             var token = _tokenHandler.CreatePasswordResetToken(user);
@@ -123,32 +147,17 @@ namespace AuthService.Business.Services.AuthService
             await _context.SaveChangesAsync();
         }
 
-        public async Task UpdatePasswordAsync(string oldPassword, string newPassword)
+        public async Task UpdatePasswordAsync(PasswordChangeDto dto)
         {
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == _currentUser.UserGuid)
                 ?? throw new NotFoundException<User>();
 
-            if (!_tokenHandler.VerifyPasswordHash(oldPassword, user.Password))
+            if (!_tokenHandler.VerifyPasswordHash(dto.CurrentPassword, user.Password))
                 throw new OldPasswordWrongException();
 
-            user.Password = _tokenHandler.GeneratePasswordHash(newPassword);
+            user.Password = _tokenHandler.GeneratePasswordHash(dto.NewPassword);
             await _context.SaveChangesAsync();
-        }
-
-        private async Task CheckUserExistAsync(string email, string phoneNumber)
-        {
-            var existingUser = await _context.Users
-                .Where(x => x.Email == email.ToLower() || x.MainPhoneNumber == phoneNumber)
-                .Select(x => new { x.Email, x.MainPhoneNumber })
-                .FirstOrDefaultAsync();
-
-            if (existingUser != null)
-            {
-                throw existingUser.Email == email.ToLower()
-                    ? new ExistEmailException()
-                    : new ExistPhoneNumberException();
-            }
         }
 
         private async Task<TokenResponseDto> GenerateTokenResponse(User user)
@@ -165,33 +174,43 @@ namespace AuthService.Business.Services.AuthService
                 UserId = user.Id.ToString(),
                 FullName = $"{user.FirstName} {user.LastName}",
                 UserStatusId = (byte)user.UserRole,
+                Email = user.Email,
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
                 Expires = refreshToken.Expires,
             };
 
-
             return response;
         }
 
-        Task IAuthService.CheckUserExistAsync(string email, string phoneNumber)
-        {
-            return CheckUserExistAsync(email, phoneNumber);
-        }
 
-        public async Task LogOutAsync(LogoutDto dto)
-        {
-            if (_currentUser.UserGuid == Guid.Empty)
-                throw new UnauthorizedAccessException("User not authenticated");
+        //public async Task LogOutAsync(LogoutDto dto)
+        //{
+        //    if (_currentUser.UserGuid == Guid.Empty)
+        //        throw new UnauthorizedAccessException("İstifadəçinin kimliyi təsdiqlənməyib");
 
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == _currentUser.UserGuid)
-                ?? throw new NotFoundException<User>();
+        //    var user = await _context.Users
+        //        .FirstOrDefaultAsync(u => u.Id == _currentUser.UserGuid)
+        //        ?? throw new NotFoundException<User>();
 
-            user.RefreshToken = null;
-            user.RefreshTokenExpireDate = null;
+        //    user.RefreshToken = null;
+        //    user.RefreshTokenExpireDate = null;
 
-            await _context.SaveChangesAsync();
-        }
+        //    if (!string.IsNullOrEmpty(dto.AccessToken))
+        //    {
+        //        if (!dto.ExpireTime.HasValue)
+        //            throw new ArgumentException("AccessToken Bitmə vaxtı tələb olunur ");
+
+        //        await _context.BlacklistedTokens.AddAsync(new BlacklistedToken
+        //        {
+        //            Token = dto.AccessToken,
+        //            ExpireTime = dto.ExpireTime.Value,
+        //            UserId = user.Id,
+        //            Reason = "User logout"
+        //        });
+        //    }
+
+        //    await _context.SaveChangesAsync();
+        //}
     }
 }

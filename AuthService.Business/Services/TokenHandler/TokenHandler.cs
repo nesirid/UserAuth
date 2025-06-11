@@ -1,4 +1,5 @@
 ﻿using AuthService.Business.Dtos;
+using AuthService.Business.Services.TokenHandler.Interface;
 using AuthService.Core.Entities;
 using Konscious.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
@@ -12,9 +13,9 @@ namespace AuthService.Business.Services.TokenHandler
 {
     public class TokenHandler(IConfiguration _configuration) : ITokenHandler
     {
-        private const int Argon2DegreeOfParallelism = 4; // Degree of parallelism for Argon2 hashing 4 threads
-        private const int Argon2Iterations = 3; // Number of iterations for Argon2 hashing 4
-        private const int Argon2MemorySize = 65536; // Memory size in KB for Argon2 hashing 64 MB
+        private const int Argon2DegreeOfParallelism = 4; // Degree of parallelism for Argon2 hashing 4 threads// bu prosesordan asilidi
+        private const int Argon2Iterations = 3; // Number of iterations for Argon2 hashing 4 // bu ancaq odensle elaqedar olsa filan eytiyac yoxdu 6-10 
+        private const int Argon2MemorySize = 65536; // Memory size in KB for Argon2 hashing 64 MB // mən minimal goydum güvənli 262144–524288
         private const int Argon2HashLength = 32; // Length of the hash in bytes for Argon2 hashing 32 bytes
 
         public string CreateToken(User user, int expires = 60) // Expires in minutes
