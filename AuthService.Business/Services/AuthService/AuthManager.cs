@@ -34,6 +34,7 @@ namespace AuthService.Business.Services.AuthService
             _currentUser = currentUser;
         }
 
+        //1
         public async Task RegisterAsync(RegisterDto dto)
         {
             dto.MainPhoneNumber = dto.MainPhoneNumber.Trim();
@@ -69,6 +70,102 @@ namespace AuthService.Business.Services.AuthService
             await _context.SaveChangesAsync();
         }
 
+        //2
+        public async Task<TokenResponseDto> LoginAsync(LoginDto dto)
+        {
+            var normalizedInput = dto.UserNameOrEmail.ToLower().Trim();
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x => x.Email.ToLower() == normalizedInput || x.UserName.ToLower() == normalizedInput)
+                ?? throw new LoginFailedException("Login səfdir");
+
+            if (user.Status == UserStatus.Blocked)
+            {
+                throw new Exception("İstifadəci bloklanıb");
+            }
+
+            if (user.Status != UserStatus.Active)
+            {
+                throw new InvalidUserStatusException($"İstifadəci Aktiv deyil {user.Status}");
+            }
+
+            if (!_tokenHandler.VerifyPasswordHash(dto.Password, user.Password))
+            {
+                user.FailedLoginAttempts++;
+
+                if (user.FailedLoginAttempts >= 5)
+                {
+                    user.Status = UserStatus.Blocked;
+                    user.BlockedDate = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    throw new UserAccessException("Hesabınız təhlükəsizlik məqsədilə bloklanıb. " +
+                                                  "Çoxsaylı uğursuz giriş cəhdləri aşkar edilib. " +
+                                                  "Zəhmət olmasa dəstək xidməti ilə əlaqə saxlayın.");
+                }
+
+                await _context.SaveChangesAsync();
+                throw new LoginFailedException($"Şifrə yanlışdır. {5 - user.FailedLoginAttempts}");
+            }
+
+            user.FailedLoginAttempts = 0;
+            await _context.SaveChangesAsync();
+
+            return await GenerateTokenResponse(user);
+        }
+
+        //3
+        public async Task<TokenResponseDto> LoginWithRefreshTokenAsync(string refreshToken)
+        {
+            if (string.IsNullOrEmpty(refreshToken))
+                throw new RefreshTokenExpiredException();
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x => x.RefreshToken == refreshToken && x.RefreshTokenExpireDate > DateTime.UtcNow)
+                ?? throw new LoginFailedException();
+
+            return await GenerateTokenResponse(user);
+        }
+
+        //4
+        public async Task ResetPasswordAsync(string input)
+        {
+            var normalizedInput = input.ToLower();
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x =>
+                    x.Email.ToLower() == normalizedInput ||
+                    x.UserName.ToLower() == normalizedInput)
+                ?? throw new UserNotFoundException();
+
+            var token = _tokenHandler.CreatePasswordResetToken(user);
+
+            await _context.PasswordTokens.AddAsync(new PasswordToken
+            {
+                Token = token,
+                UserId = user.Id,
+                ExpireTime = DateTime.UtcNow.AddHours(1)
+            });
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task ConfirmPasswordResetAsync(PasswordResetDto dto)
+        {
+            var jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(dto.Token);
+            var email = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == email.ToLower())
+                ?? throw new UserNotFoundException();
+
+            var passwordToken = await _context.PasswordTokens
+                .FirstOrDefaultAsync(pt => pt.Token == dto.Token && pt.UserId == user.Id && pt.ExpireTime > DateTime.UtcNow)
+                ?? throw new BadRequestException("Invalid or expired token");
+
+            user.Password = _tokenHandler.GeneratePasswordHash(dto.NewPassword);
+            _context.PasswordTokens.Remove(passwordToken);
+            await _context.SaveChangesAsync();
+        }
 
         public async Task BlockUserAsync(Guid userId)
         {
@@ -80,7 +177,7 @@ namespace AuthService.Business.Services.AuthService
                 ?? throw new NotFoundException<User>();
 
             if ((UserRole)_currentUser.UserRole != UserRole.SuperAdmin)
-                throw new UnauthorizedAccessException("Only super administrators can block users");
+                throw new UnauthorizedAccessException("Only administrators can block users");
 
             user.Status = UserStatus.Blocked;
             user.RefreshToken = null;
@@ -135,100 +232,7 @@ namespace AuthService.Business.Services.AuthService
         //    return await GenerateTokenResponse(user);
         //}
 
-        public async Task<TokenResponseDto> LoginAsync(LoginDto dto)
-        {
-            var normalizedInput = dto.UserNameOrEmail.ToLower().Trim();
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(x => x.Email.ToLower() == normalizedInput || x.UserName.ToLower() == normalizedInput)
-                ?? throw new LoginFailedException("Login ve ya parol səfdir");
-
-            if (user.Status == UserStatus.Blocked)
-            {
-                throw new Exception("İstifadəci bloklanıb");
-            }
-
-            if (user.Status != UserStatus.Active)
-            {
-                throw new InvalidUserStatusException($"İstifadəci Aktiv deyil {user.Status}");
-            }
-
-            if (!_tokenHandler.VerifyPasswordHash(dto.Password, user.Password))
-            {
-                user.FailedLoginAttempts++;
-
-                if (user.FailedLoginAttempts >= 5)
-                {
-                    user.Status = UserStatus.Blocked;
-                    user.BlockedDate = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
-                    throw new UserAccessException("Hesabınız təhlükəsizlik məqsədilə bloklanıb. " +
-                                                  "Çoxsaylı uğursuz giriş cəhdləri aşkar edilib. " +
-                                                  "Zəhmət olmasa dəstək xidməti ilə əlaqə saxlayın.");
-                }
-
-                await _context.SaveChangesAsync();
-                throw new LoginFailedException($"Şifrə yanlışdır. {5 - user.FailedLoginAttempts}");
-            }
-
-            user.FailedLoginAttempts = 0;
-            await _context.SaveChangesAsync();
-
-            return await GenerateTokenResponse(user);
-        }
-
-
-        public async Task<TokenResponseDto> LoginWithRefreshTokenAsync(string refreshToken)
-        {
-            if (string.IsNullOrEmpty(refreshToken))
-                throw new RefreshTokenExpiredException();
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(x => x.RefreshToken == refreshToken && x.RefreshTokenExpireDate > DateTime.UtcNow)
-                ?? throw new LoginFailedException();
-
-            return await GenerateTokenResponse(user);
-        }
-
-        public async Task ResetPasswordAsync(string input)
-        {
-            var normalizedInput = input.ToLower();
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(x =>
-                    x.Email.ToLower() == normalizedInput ||
-                    x.UserName.ToLower() == normalizedInput)
-                ?? throw new UserNotFoundException();
-
-            var token = _tokenHandler.CreatePasswordResetToken(user);
-
-            await _context.PasswordTokens.AddAsync(new PasswordToken
-            {
-                Token = token,
-                UserId = user.Id,
-                ExpireTime = DateTime.UtcNow.AddHours(1)
-            });
-
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task ConfirmPasswordResetAsync(PasswordResetDto dto)
-        {
-            var jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(dto.Token);
-            var email = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email.ToLower())
-                ?? throw new UserNotFoundException();
-
-            var passwordToken = await _context.PasswordTokens
-                .FirstOrDefaultAsync(pt => pt.Token == dto.Token && pt.UserId == user.Id && pt.ExpireTime > DateTime.UtcNow)
-                ?? throw new BadRequestException("Invalid or expired token");
-
-            user.Password = _tokenHandler.GeneratePasswordHash(dto.NewPassword);
-            _context.PasswordTokens.Remove(passwordToken);
-            await _context.SaveChangesAsync();
-        }
+        
 
         public async Task UpdatePasswordAsync(PasswordChangeDto dto)
         {

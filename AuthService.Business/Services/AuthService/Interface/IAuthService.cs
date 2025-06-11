@@ -12,6 +12,8 @@ namespace AuthService.Business.Services.AuthService.Interface
 
         Task ResetPasswordAsync(string email);
 
+        Task UnBlockUserAsync(Guid userId);
+
         Task ConfirmPasswordResetAsync(PasswordResetDto dto);
 
         Task UpdatePasswordAsync(PasswordChangeDto dto);

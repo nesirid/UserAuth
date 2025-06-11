@@ -36,8 +36,16 @@ namespace AuthService.API.Controllers
             return Ok();
         }
 
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPost("[action]")]
-        public async Task<IActionResult> ResetPassword(PasswordResetDto resetDto)
+        public async Task<IActionResult> UnblockUser([FromBody] Guid userId)
+        {
+            await _authService.UnBlockUserAsync(userId);
+            return Ok();
+        }
+
+        [HttpPost("[action]")]
+        public async Task<IActionResult> ConfirmPasswordReset(PasswordResetDto resetDto)
         {
             await _authService.ConfirmPasswordResetAsync(resetDto);
             return Ok();
